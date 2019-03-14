@@ -98,16 +98,12 @@ func (s *Stream) Read(p []byte) (n int, err error) {
 		return n, err
 	}
 
-	fmt.Printf("read %v bytes, s.pos=%v, metaint=%v, err=%v\n", n, s.pos, s.metaint, err)
-
+	// extract stream metadata
 	metadataStart := s.metaint - s.pos
 	metadataLength := int(p[metadataStart : metadataStart+1][0]) * 16
-
-	// m, _, err := ReadMetadata(s.rc, p[offset:])
-	// if err != nil {
-	// 	return s.metaint, err
-	// }
-	// s.metadata = m
+	if metadataLength > 0 {
+		s.metadata = NewMetadata(p[metadataStart+1 : metadataStart+1+metadataLength])
+	}
 
 	// roll over position + metadata block
 	s.pos = ((s.pos + n) - s.metaint) - metadataLength - 1
