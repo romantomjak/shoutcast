@@ -24,7 +24,11 @@ func main() {
     if err != nil {
         panic(err)
     }
-    defer stream.Close()
+    
+    // optionally register a callback function to be called when song changes
+    stream.MetadataCallbackFunc = func(m *shoutcast.Metadata) {
+        println("Now listening to: ", m.StreamTitle)
+    }
 
     // setup mp3 decoder
     decoder, err := mp3.NewDecoder(stream)
