@@ -51,7 +51,7 @@ func main() {
 }
 ```
 
-## Shoutcast protocol
+## SHOUTcast protocol
 
 Very little information is available about how the streaming technology
 actually works. Everything in this repo was pieced together from random
