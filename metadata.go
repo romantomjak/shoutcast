@@ -29,3 +29,14 @@ func NewMetadata(b []byte) *Metadata {
 
 	return m
 }
+
+// Equals compares two Metadata structures for equality
+func (m *Metadata) Equals(other *Metadata) bool {
+	if other == nil {
+		return false
+	}
+	if m.StreamTitle != other.StreamTitle {
+		return false
+	}
+	return true
+}
