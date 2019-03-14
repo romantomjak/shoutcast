@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// MetadataCallbackFunc is the type of the function called when the stream metadata changes
+type MetadataCallbackFunc func(m *Metadata)
+
 // Stream represents an open shoutcast stream.
 type Stream struct {
 	// The name of the server
@@ -27,8 +30,8 @@ type Stream struct {
 	// Bitrate of the server
 	Bitrate int
 
-	// The function to be executed when stream metadata changes
-	// MetadataCallbackFunc
+	// Optional function to be executed when stream metadata changes
+	MetadataCallbackFunc MetadataCallbackFunc
 
 	// Amount of bytes to read before expecting a metadata block
 	metaint int
@@ -105,7 +108,13 @@ func (s *Stream) Read(p []byte) (n int, err error) {
 	metadataStart := s.metaint - s.pos
 	metadataLength := int(p[metadataStart : metadataStart+1][0]) * 16
 	if metadataLength > 0 {
-		s.metadata = NewMetadata(p[metadataStart+1 : metadataStart+1+metadataLength])
+		m := NewMetadata(p[metadataStart+1 : metadataStart+1+metadataLength])
+		if !m.Equals(s.metadata) {
+			s.metadata = m
+			if s.MetadataCallbackFunc != nil {
+				s.MetadataCallbackFunc(s.metadata)
+			}
+		}
 	}
 
 	// roll over position + metadata block
