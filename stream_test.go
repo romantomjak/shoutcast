@@ -133,3 +133,4 @@ func TestSkipsMetadataBlocksWhenDataIsHalfRead(t *testing.T) {
 
 // test for EOF
 // test for unexpected EOF
+// test for read on closed socket
