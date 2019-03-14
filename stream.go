@@ -60,6 +60,7 @@ func Open(url string) (*Stream, error) {
 		return nil, err
 	}
 
+	// FIXME: debug log this
 	// for k, v := range resp.Header {
 	// 	println(k, "=>", v[0])
 	// }

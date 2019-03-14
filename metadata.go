@@ -12,6 +12,8 @@ func NewMetadata(b []byte) *Metadata {
 	m := &Metadata{}
 
 	props := strings.Split(string(b), ";")
+	// FIXME: debug log props
+
 	for _, prop := range props {
 		if prop == "" {
 			continue
