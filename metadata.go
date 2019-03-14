@@ -1,6 +1,9 @@
 package shoutcast
 
-import "strings"
+import (
+	"log"
+	"strings"
+)
 
 // Metadata represents the stream metadata sent by the server
 type Metadata struct {
@@ -12,7 +15,7 @@ func NewMetadata(b []byte) *Metadata {
 	m := &Metadata{}
 
 	props := strings.Split(string(b), ";")
-	// FIXME: debug log props
+	log.Print("[DEBUG] Received metadata: ", props)
 
 	for _, prop := range props {
 		if prop == "" {

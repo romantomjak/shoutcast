@@ -3,6 +3,7 @@ package shoutcast
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -44,6 +45,8 @@ type Stream struct {
 
 // Open establishes a connection to a remote server.
 func Open(url string) (*Stream, error) {
+	log.Print("[INFO] Opening ", url)
+
 	req, err := http.NewRequest("GET", url, nil)
 	req.Header.Add("accept", "*/*")
 	req.Header.Add("user-agent", "iTunes/12.9.2 (Macintosh; OS X 10.14.3) AppleWebKit/606.4.5")
@@ -60,10 +63,9 @@ func Open(url string) (*Stream, error) {
 		return nil, err
 	}
 
-	// FIXME: debug log this
-	// for k, v := range resp.Header {
-	// 	println(k, "=>", v[0])
-	// }
+	for k, v := range resp.Header {
+		log.Print("[DEBUG] HTTP header ", k, ": ", v[0])
+	}
 
 	bitrate, err := strconv.Atoi(resp.Header.Get("icy-br"))
 	if err != nil {
@@ -118,5 +120,6 @@ func (s *Stream) Read(p []byte) (n int, err error) {
 
 // Close closes the stream
 func (s *Stream) Close() error {
+	log.Print("[INFO] Closing ", s.URL)
 	return s.rc.Close()
 }
