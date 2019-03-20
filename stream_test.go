@@ -2,6 +2,7 @@ package shoutcast
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -72,16 +73,42 @@ func TestRequiredHTTPHeadersArePresent(t *testing.T) {
 	assertStrings(t, headers.Get("user-agent")[:6], "iTunes")
 }
 
-func TestSkipsMetadataBlocks(t *testing.T) {
+func TestUnexpectedEOF(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("icy-br", "192")
+		w.Header().Set("icy-metaint", "1")
+
+		metadata := makeMetadata("SongTitle='Prospa Prayer';")
+		stream := insertMetadata([]byte{1, 1}, metadata, 1)
+		fmt.Printf("%v\n", stream)
+		w.Write(stream)
+	}))
+	defer ts.Close()
+
+	s, _ := Open(ts.URL)
+
+	b1 := make([]byte, 1)
+	s.Read(b1)
+	assertEqual(t, b1, []byte{1})
+
+	b2 := make([]byte, 1)
+	s.Read(b2)
+	assertEqual(t, b2, []byte{1})
+
+	// ooops, nothing to read
+	b3 := make([]byte, 1)
+	_, err := s.Read(b3)
+	assertEqual(t, err, io.ErrUnexpectedEOF)
+}
+
+func TestMetaintEqualsClientBufferLength(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("icy-br", "192")
 		w.Header().Set("icy-metaint", "2")
 
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
-		metadata2 := makeMetadata("StreamTitle='Matisse & Sadko - Melodicca';")
-		fmt.Printf("=== %v ||| %v\n", metadata2[0], metadata2)
-		stream := insertMetadata([]byte{1, 1, 1, 1, 1}, metadata, 2)
-		fmt.Printf("%v\n%v\n", metadata, stream)
+		stream := insertMetadata([]byte{1, 1, 1, 1, 1, 1}, metadata, 2)
+		fmt.Printf("%v\n", stream)
 		w.Write(stream)
 	}))
 	defer ts.Close()
@@ -89,48 +116,44 @@ func TestSkipsMetadataBlocks(t *testing.T) {
 	s, _ := Open(ts.URL)
 
 	b1 := make([]byte, 2)
-	n, err := s.Read(b1)
-	fmt.Printf(">> n=%v, err=%v\n", n, err)
+	s.Read(b1)
 	assertEqual(t, b1, []byte{1, 1})
 
 	b2 := make([]byte, 2)
-	n, err = s.Read(b2)
-	fmt.Printf(">> n=%v, err=%v\n", n, err)
+	s.Read(b2)
 	assertEqual(t, b2, []byte{1, 1})
 
-	b3 := make([]byte, 1)
-	n, err = s.Read(b3)
-	fmt.Printf(">> n=%v, err=%v\n", n, err)
-	assertEqual(t, b3, []byte{1})
+	b3 := make([]byte, 2)
+	s.Read(b3)
+	assertEqual(t, b3, []byte{1, 1})
 }
 
-func TestSkipsMetadataBlocksWhenDataIsHalfRead(t *testing.T) {
+func TestMetaintGreaterThanClientBufferLength(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("icy-br", "192")
-		w.Header().Set("icy-metaint", "2")
+		w.Header().Set("icy-metaint", "3")
 
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
-		metadata2 := makeMetadata("StreamTitle='Matisse & Sadko - Melodicca';")
-		fmt.Printf("=== %v\n", metadata2)
-		stream := insertMetadata([]byte{1, 1, 1, 1, 1}, metadata, 2)
-		fmt.Printf("%v\n%v\n", metadata, stream)
+		stream := insertMetadata([]byte{1, 1, 1, 1, 1, 1}, metadata, 3)
+		fmt.Printf("%v\n", stream)
 		w.Write(stream)
 	}))
 	defer ts.Close()
 
 	s, _ := Open(ts.URL)
 
-	b1 := make([]byte, 3)
-	n, err := s.Read(b1)
-	fmt.Printf(">> n=%v, err=%v\n", n, err)
+	b1 := make([]byte, 2)
+	s.Read(b1)
 	assertEqual(t, b1, []byte{1, 1})
 
 	b2 := make([]byte, 2)
-	n, err = s.Read(b2)
-	fmt.Printf(">> n=%v, err=%v\n", n, err)
+	s.Read(b2)
 	assertEqual(t, b2, []byte{1, 1})
+
+	b3 := make([]byte, 2)
+	s.Read(b3)
+	assertEqual(t, b3, []byte{1, 1})
 }
 
 // test for EOF
-// test for unexpected EOF
 // test for read on closed socket
