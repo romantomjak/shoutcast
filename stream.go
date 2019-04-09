@@ -110,22 +110,50 @@ func (s *Stream) Read(p []byte) (n int, err error) {
 	// extract stream metadata
 	metadataStart := s.metaint - s.pos
 	metadataLength := int(p[metadataStart : metadataStart+1][0]) * 16
+	metadataEnd := metadataStart + 1 + metadataLength
+	var metabuf []byte
+	metadataRead := false
+	rollOver := true
 	if metadataLength > 0 {
-		m := NewMetadata(p[metadataStart+1 : metadataStart+1+metadataLength])
-		if !m.Equals(s.metadata) {
+		if len(p) < metadataEnd {
+			// The provided buffer was not large enough for the metadata block to fit in.
+			// Read whole metadata into our own buffer.
+			metabuf = make([]byte, metadataLength)
+			copy(metabuf, p[metadataStart+1:])
+			mn := len(p) - (metadataStart + 1)
+			for mn < metadataLength && err == nil {
+				var nn int
+				nn, err = s.rc.Read(metabuf[mn:])
+				mn += nn
+			}
+			if mn == metadataLength {
+				metadataRead = true
+			}
+			n = metadataStart
+			// If we fail in the middle of a metadata block this is not really correct. But then the
+			// returned error hopefully ensures a reinit.
+			s.pos = 0
+			rollOver = false
+		} else {
+			metabuf = p[metadataStart+1 : metadataEnd]
+			metadataRead = true
+		}
+	}
+	if metadataRead {
+		if m := NewMetadata(metabuf); !m.Equals(s.metadata) {
 			s.metadata = m
 			if s.MetadataCallbackFunc != nil {
 				s.MetadataCallbackFunc(s.metadata)
 			}
 		}
 	}
-
-	// roll over position + metadata block
-	s.pos = ((s.pos + n) - s.metaint) - metadataLength - 1
-
-	// shift buffer data to account for metadata block
-	copy(p[metadataStart:], p[metadataStart+1+metadataLength:])
-	n = n - 1 - metadataLength
+	if rollOver {
+		// roll over position + metadata block
+		s.pos = ((s.pos + n) - s.metaint) - metadataLength - 1
+		// shift buffer data to account for metadata block
+		copy(p[metadataStart:], p[metadataEnd:])
+		n = n - 1 - metadataLength
+	}
 
 	return n, err
 }

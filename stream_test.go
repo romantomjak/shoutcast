@@ -1,7 +1,6 @@
 package shoutcast
 
 import (
-	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func assertStrings(t *testing.T, got, want string) {
@@ -92,7 +92,7 @@ func TestUnexpectedEOF(t *testing.T) {
 
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
 		stream := insertMetadata([]byte{1, 1}, metadata, 1)
-		fmt.Printf("%v\n", stream)
+		// fmt.Printf("%v\n", stream)
 		w.Write(stream)
 	}))
 	defer ts.Close()
@@ -100,17 +100,31 @@ func TestUnexpectedEOF(t *testing.T) {
 	s, _ := Open(ts.URL)
 
 	b1 := make([]byte, 1)
-	s.Read(b1)
-	assertEqual(t, b1, []byte{1})
+	n, err := s.Read(b1)
+	if assert.NoError(t, err) && assert.Equal(t, 1, n) {
+		assert.Equal(t, []byte{1}, b1)
+	}
+
+	// The metadata is immediatly read and does not fit into the buffer.
+	// -> `0, nil` is returned.
+	// Filling the buffer after the reading of the metadata would be more complexity without advantage.
+	n, err = s.Read(b1)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, n)
 
 	b2 := make([]byte, 1)
-	s.Read(b2)
-	assertEqual(t, b2, []byte{1})
+	n, err = s.Read(b2)
+	if assert.NoError(t, err) && assert.Equal(t, 1, n) {
+		assert.Equal(t, []byte{1}, b2)
+	}
 
 	// ooops, nothing to read
 	b3 := make([]byte, 1)
-	_, err := s.Read(b3)
-	assertEqual(t, err, io.ErrUnexpectedEOF)
+	n, err = s.Read(b3)
+	assert.Equal(t, 0, n)
+	if assert.Error(t, err) {
+		assert.Equal(t, io.EOF, err)
+	}
 }
 
 func TestMetaintEqualsClientBufferLength(t *testing.T) {
@@ -120,7 +134,7 @@ func TestMetaintEqualsClientBufferLength(t *testing.T) {
 
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
 		stream := insertMetadata([]byte{1, 1, 1, 1, 1, 1}, metadata, 2)
-		fmt.Printf("%v\n", stream)
+		// fmt.Printf("%v\n", stream)
 		w.Write(stream)
 	}))
 	defer ts.Close()
@@ -128,16 +142,41 @@ func TestMetaintEqualsClientBufferLength(t *testing.T) {
 	s, _ := Open(ts.URL)
 
 	b1 := make([]byte, 2)
-	s.Read(b1)
-	assertEqual(t, b1, []byte{1, 1})
+	n, err := s.Read(b1)
+	if assert.NoError(t, err) && assert.Equal(t, 2, n) {
+		assert.Equal(t, []byte{1, 1}, b1)
+	}
+
+	// The metadata is immediatly read and does not fit into the buffer.
+	// -> `0, nil` is returned.
+	// Filling the buffer after the reading of the metadata would be more complexity without advantage.
+	n, err = s.Read(b1)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, n)
 
 	b2 := make([]byte, 2)
-	s.Read(b2)
-	assertEqual(t, b2, []byte{1, 1})
+	n, err = s.Read(b2)
+	if assert.NoError(t, err) && assert.Equal(t, 2, n) {
+		assert.Equal(t, []byte{1, 1}, b2)
+	}
+
+	// no data except metadata read, again
+	n, err = s.Read(b2)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, n)
 
 	b3 := make([]byte, 2)
-	s.Read(b3)
-	assertEqual(t, b3, []byte{1, 1})
+	n, err = s.Read(b3)
+	if assert.NoError(t, err) && assert.Equal(t, 2, n) {
+		assert.Equal(t, []byte{1, 1}, b3)
+	}
+
+	// check for EOF
+	n, err = s.Read(b1)
+	assert.Equal(t, 0, n)
+	if assert.Error(t, err) {
+		assert.Equal(t, io.EOF, err)
+	}
 }
 
 func TestMetaintGreaterThanClientBufferLength(t *testing.T) {
@@ -147,7 +186,7 @@ func TestMetaintGreaterThanClientBufferLength(t *testing.T) {
 
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
 		stream := insertMetadata([]byte{1, 1, 1, 1, 1, 1}, metadata, 3)
-		fmt.Printf("%v\n", stream)
+		// fmt.Printf("%v\n", stream)
 		w.Write(stream)
 	}))
 	defer ts.Close()
@@ -155,16 +194,66 @@ func TestMetaintGreaterThanClientBufferLength(t *testing.T) {
 	s, _ := Open(ts.URL)
 
 	b1 := make([]byte, 2)
-	s.Read(b1)
-	assertEqual(t, b1, []byte{1, 1})
+	n, err := s.Read(b1)
+	if assert.NoError(t, err) && assert.Equal(t, 2, n) {
+		assert.Equal(t, []byte{1, 1}, b1)
+	}
 
+	// only one byte read then follows metadata
 	b2 := make([]byte, 2)
-	s.Read(b2)
-	assertEqual(t, b2, []byte{1, 1})
+	n, err = s.Read(b2)
+	if assert.NoError(t, err) && assert.Equal(t, 1, n) {
+		// don't assert the second byte, only one read
+		assert.Equal(t, []byte{1}, b2[:1])
+	}
 
 	b3 := make([]byte, 2)
-	s.Read(b3)
-	assertEqual(t, b3, []byte{1, 1})
+	n, err = s.Read(b3)
+	if assert.NoError(t, err) && assert.Equal(t, 2, n) {
+		assert.Equal(t, []byte{1, 1}, b3)
+	}
+
+	// only one byte read then follows metadata and then EOF
+	b4 := make([]byte, 2)
+	n, err = s.Read(b4)
+	if assert.Equal(t, 1, n) {
+		// don't assert the second byte, only one read
+		assert.Equal(t, []byte{1}, b4[:1])
+	}
+	if assert.Error(t, err) {
+		assert.Equal(t, io.EOF, err)
+	}
+}
+
+func TestClientBufferLargeEnoughForMetadata(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("icy-br", "192")
+		w.Header().Set("icy-metaint", "3")
+
+		metadata := makeMetadata("SongTitle='Prospa Prayer';")
+		stream := insertMetadata([]byte{3, 4, 5, 6, 7, 8, 9}, metadata, 3)
+		w.Write(stream)
+	}))
+	defer ts.Close()
+
+	s, err := Open(ts.URL)
+	require.NoError(t, err)
+
+	// metadata length is 33 (2*16+1) -> 38 - 33 = 5 bytes stream data to be read
+	b1 := make([]byte, 38)
+	n, err := s.Read(b1)
+	if assert.NoError(t, err) && assert.Equal(t, 5, n) {
+		assert.Equal(t, []byte{3, 4, 5, 6, 7}, b1[:5])
+	}
+
+	b2 := make([]byte, 38)
+	n, err = s.Read(b2)
+	if assert.Equal(t, 2, n) {
+		assert.Equal(t, []byte{8, 9}, b2[:2])
+	}
+	if assert.Error(t, err) {
+		assert.Equal(t, io.EOF, err)
+	}
 }
 
 // test for EOF
