@@ -93,7 +93,8 @@ func TestUnexpectedEOF(t *testing.T) {
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
 		stream := insertMetadata([]byte{1, 1}, metadata, 1)
 		// fmt.Printf("%v\n", stream)
-		w.Write(stream)
+		// unexpected EOF in the middle of a metadata block
+		w.Write(stream[:len(stream)-10])
 	}))
 	defer ts.Close()
 
@@ -123,7 +124,7 @@ func TestUnexpectedEOF(t *testing.T) {
 	n, err = s.Read(b3)
 	assert.Equal(t, 0, n)
 	if assert.Error(t, err) {
-		assert.Equal(t, io.EOF, err)
+		assert.Equal(t, io.ErrUnexpectedEOF, err)
 	}
 }
 

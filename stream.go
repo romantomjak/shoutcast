@@ -128,6 +128,8 @@ func (s *Stream) Read(p []byte) (n int, err error) {
 			}
 			if mn == metadataLength {
 				metadataRead = true
+			} else if err == nil || err == io.EOF {
+				err = io.ErrUnexpectedEOF
 			}
 			n = metadataStart
 			// If we fail in the middle of a metadata block this is not really correct. But then the
