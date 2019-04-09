@@ -2,6 +2,6 @@ language: go
 go: 1.12
 go_import_path: github.com/romantomjak/shoutcast
 
-install: true
+install: go get github.com/stretchr/testify
 
 script: go test
