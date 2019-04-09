@@ -99,49 +99,68 @@ func Open(url string) (*Stream, error) {
 }
 
 // Read implements the standard Read interface
-func (s *Stream) Read(p []byte) (n int, err error) {
-	n, err = s.rc.Read(p)
+func (s *Stream) Read(buf []byte) (dataLen int, err error) {
+	dataLen, err = s.rc.Read(buf)
 
-	if s.pos+n <= s.metaint {
-		s.pos = s.pos + n
-		return n, err
+	checkedDataLen := 0
+	uncheckedDataLen := dataLen
+	for s.pos+uncheckedDataLen > s.metaint {
+		offset := s.metaint - s.pos
+		skip, e := s.extractMetadata(buf[checkedDataLen+offset:])
+		if e != nil {
+			err = e
+		}
+		s.pos = 0
+		if offset+skip > uncheckedDataLen {
+			dataLen = checkedDataLen + offset
+			uncheckedDataLen = 0
+		} else {
+			checkedDataLen += offset
+			dataLen -= skip
+			uncheckedDataLen = dataLen - checkedDataLen
+			copy(buf[checkedDataLen:], buf[checkedDataLen+skip:])
+		}
 	}
+	s.pos = s.pos + uncheckedDataLen
 
-	// extract stream metadata
-	metadataStart := s.metaint - s.pos
-	metadataLength := int(p[metadataStart : metadataStart+1][0]) * 16
-	metadataEnd := metadataStart + 1 + metadataLength
+	return
+}
+
+// Close closes the stream
+func (s *Stream) Close() error {
+	log.Print("[INFO] Closing ", s.URL)
+	return s.rc.Close()
+}
+
+func (s *Stream) extractMetadata(p []byte) (int, error) {
 	var metabuf []byte
-	metadataRead := false
-	rollOver := true
-	if metadataLength > 0 {
-		if len(p) < metadataEnd {
+	var err error
+	length := int(p[0]) * 16
+	end := length + 1
+	complete := false
+	if length > 0 {
+		if len(p) < end {
 			// The provided buffer was not large enough for the metadata block to fit in.
 			// Read whole metadata into our own buffer.
-			metabuf = make([]byte, metadataLength)
-			copy(metabuf, p[metadataStart+1:])
-			mn := len(p) - (metadataStart + 1)
-			for mn < metadataLength && err == nil {
+			metabuf = make([]byte, length)
+			copy(metabuf, p[1:])
+			n := len(p) - 1
+			for n < length && err == nil {
 				var nn int
-				nn, err = s.rc.Read(metabuf[mn:])
-				mn += nn
+				nn, err = s.rc.Read(metabuf[n:])
+				n += nn
 			}
-			if mn == metadataLength {
-				metadataRead = true
+			if n == length {
+				complete = true
 			} else if err == nil || err == io.EOF {
 				err = io.ErrUnexpectedEOF
 			}
-			n = metadataStart
-			// If we fail in the middle of a metadata block this is not really correct. But then the
-			// returned error hopefully ensures a reinit.
-			s.pos = 0
-			rollOver = false
 		} else {
-			metabuf = p[metadataStart+1 : metadataEnd]
-			metadataRead = true
+			metabuf = p[1:end]
+			complete = true
 		}
 	}
-	if metadataRead {
+	if complete {
 		if m := NewMetadata(metabuf); !m.Equals(s.metadata) {
 			s.metadata = m
 			if s.MetadataCallbackFunc != nil {
@@ -149,19 +168,5 @@ func (s *Stream) Read(p []byte) (n int, err error) {
 			}
 		}
 	}
-	if rollOver {
-		// roll over position + metadata block
-		s.pos = ((s.pos + n) - s.metaint) - metadataLength - 1
-		// shift buffer data to account for metadata block
-		copy(p[metadataStart:], p[metadataEnd:])
-		n = n - 1 - metadataLength
-	}
-
-	return n, err
-}
-
-// Close closes the stream
-func (s *Stream) Close() error {
-	log.Print("[INFO] Closing ", s.URL)
-	return s.rc.Close()
+	return length + 1, err
 }

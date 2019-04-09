@@ -257,5 +257,36 @@ func TestClientBufferLargeEnoughForMetadata(t *testing.T) {
 	}
 }
 
+func TestClientBufferLargeEnoughForTwoTimesMetadata(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("icy-br", "192")
+		w.Header().Set("icy-metaint", "3")
+
+		metadata := makeMetadata("SongTitle='Prospa Prayer';")
+		stream := insertMetadata([]byte{3, 4, 5, 6, 7, 8, 9, 10}, metadata, 3)
+		w.Write(stream)
+	}))
+	defer ts.Close()
+
+	s, err := Open(ts.URL)
+	require.NoError(t, err)
+
+	// metadata length is 33 (2*16+1) -> 73 - 2 * 33 = 7
+	b1 := make([]byte, 73)
+	n, err := s.Read(b1)
+	if assert.NoError(t, err) && assert.Equal(t, 7, n) {
+		assert.Equal(t, []byte{3, 4, 5, 6, 7, 8, 9}, b1[:7])
+	}
+
+	b2 := make([]byte, 38)
+	n, err = s.Read(b2)
+	if assert.Equal(t, 1, n) {
+		assert.Equal(t, []byte{10}, b2[:1])
+	}
+	if assert.Error(t, err) {
+		assert.Equal(t, io.EOF, err)
+	}
+}
+
 // test for EOF
 // test for read on closed socket
