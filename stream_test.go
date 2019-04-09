@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func assertStrings(t *testing.T, got, want string) {
@@ -71,6 +73,16 @@ func TestRequiredHTTPHeadersArePresent(t *testing.T) {
 
 	assertStrings(t, headers.Get("icy-metadata"), "1")
 	assertStrings(t, headers.Get("user-agent")[:6], "iTunes")
+}
+
+func TestMissingBitrate(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header()["icy-metaint"] = []string{"100"}
+		w.WriteHeader(200)
+	}))
+
+	_, err := Open(ts.URL)
+	assert.NoError(t, err)
 }
 
 func TestUnexpectedEOF(t *testing.T) {

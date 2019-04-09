@@ -70,9 +70,12 @@ func Open(url string) (*Stream, error) {
 		log.Print("[DEBUG] HTTP header ", k, ": ", v[0])
 	}
 
-	bitrate, err := strconv.Atoi(resp.Header.Get("icy-br"))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse bitrate: %v", err)
+	var bitrate int
+	if rawBitrate := resp.Header.Get("icy-br"); rawBitrate != "" {
+		bitrate, err = strconv.Atoi(rawBitrate)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse bitrate: %v", err)
+		}
 	}
 
 	metaint, err := strconv.Atoi(resp.Header.Get("icy-metaint"))
