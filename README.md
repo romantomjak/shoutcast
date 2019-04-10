@@ -1,5 +1,7 @@
 # shoutcast
 
+[![Build Status](https://travis-ci.org/romantomjak/shoutcast.svg?branch=master)](https://travis-ci.org/romantomjak/shoutcast)
+
 Go interface for SHOUTcast streaming protocol. 
 
 ---
