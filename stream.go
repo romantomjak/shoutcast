@@ -70,9 +70,12 @@ func Open(url string) (*Stream, error) {
 		log.Print("[DEBUG] HTTP header ", k, ": ", v[0])
 	}
 
-	bitrate, err := strconv.Atoi(resp.Header.Get("icy-br"))
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse bitrate: %v", err)
+	var bitrate int
+	if rawBitrate := resp.Header.Get("icy-br"); rawBitrate != "" {
+		bitrate, err = strconv.Atoi(rawBitrate)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse bitrate: %v", err)
+		}
 	}
 
 	metaint, err := strconv.Atoi(resp.Header.Get("icy-metaint"))
@@ -96,39 +99,74 @@ func Open(url string) (*Stream, error) {
 }
 
 // Read implements the standard Read interface
-func (s *Stream) Read(p []byte) (n int, err error) {
-	n, err = s.rc.Read(p)
+func (s *Stream) Read(buf []byte) (dataLen int, err error) {
+	dataLen, err = s.rc.Read(buf)
 
-	if s.pos+n <= s.metaint {
-		s.pos = s.pos + n
-		return n, err
-	}
-
-	// extract stream metadata
-	metadataStart := s.metaint - s.pos
-	metadataLength := int(p[metadataStart : metadataStart+1][0]) * 16
-	if metadataLength > 0 {
-		m := NewMetadata(p[metadataStart+1 : metadataStart+1+metadataLength])
-		if !m.Equals(s.metadata) {
-			s.metadata = m
-			if s.MetadataCallbackFunc != nil {
-				s.MetadataCallbackFunc(s.metadata)
-			}
+	checkedDataLen := 0
+	uncheckedDataLen := dataLen
+	for s.pos+uncheckedDataLen > s.metaint {
+		offset := s.metaint - s.pos
+		skip, e := s.extractMetadata(buf[checkedDataLen+offset:])
+		if e != nil {
+			err = e
+		}
+		s.pos = 0
+		if offset+skip > uncheckedDataLen {
+			dataLen = checkedDataLen + offset
+			uncheckedDataLen = 0
+		} else {
+			checkedDataLen += offset
+			dataLen -= skip
+			uncheckedDataLen = dataLen - checkedDataLen
+			copy(buf[checkedDataLen:], buf[checkedDataLen+skip:])
 		}
 	}
+	s.pos = s.pos + uncheckedDataLen
 
-	// roll over position + metadata block
-	s.pos = ((s.pos + n) - s.metaint) - metadataLength - 1
-
-	// shift buffer data to account for metadata block
-	copy(p[metadataStart:], p[metadataStart+1+metadataLength:])
-	n = n - 1 - metadataLength
-
-	return n, err
+	return
 }
 
 // Close closes the stream
 func (s *Stream) Close() error {
 	log.Print("[INFO] Closing ", s.URL)
 	return s.rc.Close()
+}
+
+func (s *Stream) extractMetadata(p []byte) (int, error) {
+	var metabuf []byte
+	var err error
+	length := int(p[0]) * 16
+	end := length + 1
+	complete := false
+	if length > 0 {
+		if len(p) < end {
+			// The provided buffer was not large enough for the metadata block to fit in.
+			// Read whole metadata into our own buffer.
+			metabuf = make([]byte, length)
+			copy(metabuf, p[1:])
+			n := len(p) - 1
+			for n < length && err == nil {
+				var nn int
+				nn, err = s.rc.Read(metabuf[n:])
+				n += nn
+			}
+			if n == length {
+				complete = true
+			} else if err == nil || err == io.EOF {
+				err = io.ErrUnexpectedEOF
+			}
+		} else {
+			metabuf = p[1:end]
+			complete = true
+		}
+	}
+	if complete {
+		if m := NewMetadata(metabuf); !m.Equals(s.metadata) {
+			s.metadata = m
+			if s.MetadataCallbackFunc != nil {
+				s.MetadataCallbackFunc(s.metadata)
+			}
+		}
+	}
+	return length + 1, err
 }
