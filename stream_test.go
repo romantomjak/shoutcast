@@ -116,7 +116,6 @@ func TestUnexpectedEOF(t *testing.T) {
 
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
 		stream := insertMetadata([]byte{1, 1}, metadata, 1)
-		// fmt.Printf("%v\n", stream)
 		// unexpected EOF in the middle of a metadata block
 		w.Write(stream[:len(stream)-10])
 	}))
@@ -130,7 +129,7 @@ func TestUnexpectedEOF(t *testing.T) {
 		assertEqual(t, []byte{1}, b1)
 	}
 
-	// The metadata is immediatly read and does not fit into the buffer.
+	// The metadata is read immediately and does not fit into the buffer.
 	// -> `0, nil` is returned.
 	// Filling the buffer after the reading of the metadata would be more complexity without advantage.
 	n, err = s.Read(b1)
@@ -143,7 +142,7 @@ func TestUnexpectedEOF(t *testing.T) {
 		assertEqual(t, []byte{1}, b2)
 	}
 
-	// ooops, nothing to read
+	// oops, nothing to read
 	b3 := make([]byte, 1)
 	n, err = s.Read(b3)
 	assertEqual(t, 0, n)
@@ -159,7 +158,6 @@ func TestMetaintEqualsClientBufferLength(t *testing.T) {
 
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
 		stream := insertMetadata([]byte{1, 1, 1, 1, 1, 1}, metadata, 2)
-		// fmt.Printf("%v\n", stream)
 		w.Write(stream)
 	}))
 	defer ts.Close()
@@ -172,7 +170,7 @@ func TestMetaintEqualsClientBufferLength(t *testing.T) {
 		assertEqual(t, []byte{1, 1}, b1)
 	}
 
-	// The metadata is immediatly read and does not fit into the buffer.
+	// The metadata is read immediately and does not fit into the buffer.
 	// -> `0, nil` is returned.
 	// Filling the buffer after the reading of the metadata would be more complexity without advantage.
 	n, err = s.Read(b1)
@@ -211,7 +209,6 @@ func TestMetaintGreaterThanClientBufferLength(t *testing.T) {
 
 		metadata := makeMetadata("SongTitle='Prospa Prayer';")
 		stream := insertMetadata([]byte{1, 1, 1, 1, 1, 1}, metadata, 3)
-		// fmt.Printf("%v\n", stream)
 		w.Write(stream)
 	}))
 	defer ts.Close()
