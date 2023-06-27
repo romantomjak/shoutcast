@@ -1,7 +1,11 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"io"
+	"net/url"
+	"os"
 
 	mp3 "github.com/hajimehoshi/go-mp3"
 	"github.com/hajimehoshi/oto"
@@ -9,9 +13,42 @@ import (
 	"github.com/romantomjak/shoutcast"
 )
 
+func parseAndValidateURL() string {
+	urlStr := flag.String("url", "", "URL to process")
+
+	// parse command-line arguments
+	flag.Parse()
+
+	// Check if URL argument was provided
+	if *urlStr == "" {
+		fmt.Println("You must specify a URL with the -url flag.")
+		printUsage()
+		os.Exit(1)
+	}
+
+	// Check if the URL is valid
+	_, err := url.ParseRequestURI(*urlStr)
+	if err != nil {
+		fmt.Println("Invalid URL provided.")
+		printUsage()
+		os.Exit(1)
+	}
+
+	return *urlStr
+}
+
+func printUsage() {
+	fmt.Println("\nUsage: go run main.go -url=<your-shoutcase-url>")
+}
+
 func main() {
+	shoutcastUrl := parseAndValidateURL()
+
+	// Continue processing
+	fmt.Println("Processing URL:", shoutcastUrl)
+
 	// open stream
-	stream, err := shoutcast.Open("http://streamingp.shoutcast.com/TomorrowlandOneWorldRadio")
+	stream, err := shoutcast.Open(shoutcastUrl)
 	if err != nil {
 		panic(err)
 	}
@@ -26,13 +63,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer decoder.Close()
+	defer stream.Close()
 
 	// initialise audio player
-	player, err := oto.NewPlayer(decoder.SampleRate(), 2, 2, 8192)
+	playerCtx, err := oto.NewContext(decoder.SampleRate(), 2, 2, 8192)
 	if err != nil {
 		panic(err)
 	}
+
+	player := playerCtx.NewPlayer()
 	defer player.Close()
 
 	// enjoy the music
