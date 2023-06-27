@@ -38,7 +38,7 @@ func parseAndValidateURL() string {
 }
 
 func printUsage() {
-	fmt.Println("\nUsage: go run main.go -url=<your-shoutcase-url>")
+	fmt.Println("\nUsage: go run tml.go -url=<your-shoutcast-url>")
 }
 
 func main() {
