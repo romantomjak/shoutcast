@@ -19,14 +19,14 @@ func parseAndValidateURL() string {
 	// parse command-line arguments
 	flag.Parse()
 
-	// Check if URL argument was provided
+	// check if URL argument was provided
 	if *urlStr == "" {
 		fmt.Println("You must specify a URL with the -url flag.")
 		printUsage()
 		os.Exit(1)
 	}
 
-	// Check if the URL is valid
+	// check if the URL is valid
 	_, err := url.ParseRequestURI(*urlStr)
 	if err != nil {
 		fmt.Println("Invalid URL provided.")
@@ -44,7 +44,7 @@ func printUsage() {
 func main() {
 	shoutcastUrl := parseAndValidateURL()
 
-	// Continue processing
+	// continue processing
 	fmt.Println("Processing URL:", shoutcastUrl)
 
 	// open stream
