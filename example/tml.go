@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 
 	mp3 "github.com/hajimehoshi/go-mp3"
@@ -9,9 +10,14 @@ import (
 	"github.com/romantomjak/shoutcast"
 )
 
+// shoutcast URLs change, you might need to change this to a URL that is live
+const ShoutcastUrl = "https://dancewave.online:443/dance.mp3"
+
 func main() {
+	fmt.Println("Processing URL:", ShoutcastUrl)
+
 	// open stream
-	stream, err := shoutcast.Open("http://streamingp.shoutcast.com/TomorrowlandOneWorldRadio")
+	stream, err := shoutcast.Open(ShoutcastUrl)
 	if err != nil {
 		panic(err)
 	}
@@ -26,13 +32,15 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer decoder.Close()
+	defer stream.Close()
 
 	// initialise audio player
-	player, err := oto.NewPlayer(decoder.SampleRate(), 2, 2, 8192)
+	playerCtx, err := oto.NewContext(decoder.SampleRate(), 2, 2, 8192)
 	if err != nil {
 		panic(err)
 	}
+
+	player := playerCtx.NewPlayer()
 	defer player.Close()
 
 	// enjoy the music
