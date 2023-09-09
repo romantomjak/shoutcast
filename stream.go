@@ -3,7 +3,7 @@ package shoutcast
 import (
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -48,9 +48,12 @@ type Stream struct {
 
 // Open establishes a connection to a remote server.
 func Open(url string) (*Stream, error) {
-	log.Print("[INFO] Opening ", url)
+	slog.Info("Opening stream", "url", url)
 
 	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
 	req.Header.Add("accept", "*/*")
 	req.Header.Add("user-agent", "iTunes/12.9.2 (Macintosh; OS X 10.14.3) AppleWebKit/606.4.5")
 	req.Header.Add("icy-metadata", "1")
@@ -67,7 +70,7 @@ func Open(url string) (*Stream, error) {
 	}
 
 	for k, v := range resp.Header {
-		log.Print("[DEBUG] HTTP header ", k, ": ", v[0])
+		slog.Debug("HTTP response", "header", k+": "+v[0])
 	}
 
 	var bitrate int
@@ -128,7 +131,7 @@ func (s *Stream) Read(buf []byte) (dataLen int, err error) {
 
 // Close closes the stream
 func (s *Stream) Close() error {
-	log.Print("[INFO] Closing ", s.URL)
+	slog.Info("Closing stream", "url", s.URL)
 	return s.rc.Close()
 }
 
